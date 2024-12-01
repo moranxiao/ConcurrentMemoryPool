@@ -2,6 +2,12 @@
 #include <cassert>
 #include <mutex>
 
+#ifdef _WIN32
+#include <Windows.h>
+#else
+//Linux下申请内存系统调用库
+#endif
+
 #ifdef _WIN64
 typedef long long PAGE_ID;
 #elif _WIN32
@@ -14,12 +20,29 @@ typedef size_t PAGE_ID;
 static const size_t MAX_BYTES = 256 * 1024;
 //ThreadCache和CentralCache中桶的个数
 static const size_t FREELISTS_NUM = 208;
+//PageCache的桶数
+static const size_t KPAGE = 129;
+//一个Page的大小:2^13
+static const size_t PAGE_SHIFT = 13;
 
-	
 static void*& NextObj(void* obj)
 {
 	return *(void**)obj;
 }
+
+static void* SystemAlloc(size_t kpages)
+{
+	assert(kpages > 0);
+#ifdef _WIN32
+	void* ptr = VirtualAlloc(0, kpages << 13, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+#else
+//linux下brk，mmp等
+#endif
+	if (ptr == nullptr)
+		throw std::bad_alloc();
+	return ptr;
+}
+
 
 class FreeList {
 public:
@@ -121,6 +144,15 @@ public:
 		else if (num > 512) num = 512;
 		return num;
 	}
+
+	static size_t NumMovePage(size_t sizeByte)
+	{
+		size_t num = NumMoveSize(sizeByte);
+		size_t pages = num * sizeByte;
+		pages >>= PAGE_SHIFT;
+		if (pages < 1) pages = 1;
+		return pages;
+	}
 };
 
 struct Span {
@@ -151,8 +183,8 @@ public:
 			span->_prev = pos->_prev;
 			pos->_prev = span;
 			span->_next = pos;
+			_size++;
 		}
-		_size++;
 	}
 	void Erase(Span* pos)
 	{
@@ -160,8 +192,33 @@ public:
 		{
 			pos->_prev->_next = pos->_next;
 			pos->_next->_prev = pos->_prev;
+			_size--;
 		}
-		_size--;
+	}
+	
+	void PushFront(Span* span)
+	{
+		Insert(_head->_next, span);
+	}
+
+	Span* PopFront()
+	{
+		if (!Empty())
+		{
+			Span* span = _head->_next;
+			Erase(span);
+			return span;
+		}	
+		return nullptr;
+	}
+
+	Span* Front()
+	{
+		if (!Empty())
+		{
+			return _head->_next;
+		}
+		return nullptr;
 	}
 
 	Span* Begin()

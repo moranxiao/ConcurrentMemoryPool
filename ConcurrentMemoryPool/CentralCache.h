@@ -4,9 +4,9 @@
 
 class CentralCache {
 public:
-	Span* GetOneSpan(size_t index);
+	Span* GetOneSpan(size_t index,size_t size);
 
-	size_t FetchRangeObj(void* begin, void* end, size_t batch, size_t size);
+	size_t FetchRangeObj(void*& begin, void*& end, size_t batch, size_t size);
 
 	static CentralCache* GetInstance()
 	{
@@ -17,9 +17,10 @@ private:
 
 	static CentralCache _sInst;
 private:
-	CentralCache();
-	CentralCache(const CentralCache& other) = delete;
-	CentralCache& operator=(const CentralCache& other) = delete;
+	CentralCache()
+	{}
+	CentralCache(const CentralCache&) = delete;
+	CentralCache& operator=(const CentralCache&) = delete;
 };
 
 

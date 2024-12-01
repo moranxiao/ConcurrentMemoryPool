@@ -29,15 +29,15 @@ void* ThreadCache::FetchFromCentralCache(size_t index, size_t size)
 	* 要申请的空闲内存块数 = min(maxSize,MAX_BYTES/size)
 	* MAX_BYTES/size:小对象申请的上限大，大对象申请的上限小
 	*/
-	size_t num = std::min(_freeLists[index].MaxSize(), SizeClass::NumMoveSize(size));
-	if (num == _freeLists[index].MaxSize()) _freeLists[index].MaxSize()++;
+	size_t batch = min(_freeLists[index].MaxSize(), SizeClass::NumMoveSize(size));
+	if (batch == _freeLists[index].MaxSize()) _freeLists[index].MaxSize()++;
 
 	void* start = nullptr;
 	void* end = nullptr;
-	size_t actual_num = CentralCache::GetInstance()->FetchRangeObj(start,end,num,size);
+	size_t actual_batch = CentralCache::GetInstance()->FetchRangeObj(start,end, batch,size);
 	//如果actual_num为0，则start应该为nullptr，表示获取内存块失败，直接返回start
-	if(actual_num > 1)
-		_freeLists[index].PushFront(NextObj(start), end,actual_num-1);
+	if(actual_batch > 1)
+		_freeLists[index].PushFront(NextObj(start), end,actual_batch -1);
 	
 	NextObj(start) = nullptr;
 	return start;
