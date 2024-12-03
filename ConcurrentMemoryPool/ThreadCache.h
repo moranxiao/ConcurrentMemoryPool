@@ -4,11 +4,13 @@
 
 class ThreadCache {
 public:
-	void* Allocate(size_t sizeByte);
+	void* Allocate(size_t size);
 
 	//void Deallocate();
 
 	void* FetchFromCentralCache(size_t index, size_t size);
+
+	void FreeObj(void* ptr,size_t size);
 private:
 	FreeList _freeLists[FREELISTS_NUM];
 		

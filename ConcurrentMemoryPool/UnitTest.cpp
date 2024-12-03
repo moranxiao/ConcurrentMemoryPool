@@ -3,8 +3,7 @@
 
 #include "ConcurrentAlloc.h"
 
-using namespace concurrent_mem_pool;
- 
+
 void Alloc()
 {
 	for (int i = 0; i < 5; i++)

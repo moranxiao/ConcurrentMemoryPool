@@ -1,14 +1,16 @@
 #pragma once
 #include "ThreadCache.h"
 
-namespace concurrent_mem_pool {
-
-	static void* ConcurrentAllocate(size_t size)
+static void* ConcurrentAllocate(size_t size)
+{
+	if (pTLSThreadCache == nullptr)
 	{
-		if (pTLSThreadCache == nullptr)
-		{
-			pTLSThreadCache = new ThreadCache;
-		}
-		return pTLSThreadCache->Allocate(size);
+		pTLSThreadCache = new ThreadCache;
 	}
+	return pTLSThreadCache->Allocate(size);
+}
+
+static void ConcurrentFree(void* ptr, size_t size)
+{
+
 }

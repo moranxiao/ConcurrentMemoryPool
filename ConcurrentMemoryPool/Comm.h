@@ -1,6 +1,8 @@
 #pragma once
 #include <cassert>
 #include <mutex>
+#include <algorithm>
+#include <unordered_map>
 
 #ifdef _WIN32
 #include <Windows.h>
@@ -52,7 +54,7 @@ public:
 		_freeList = obj;
 		_size++;
 	}
-	void PushFront(void* begin, void* end,size_t n)
+	void PushRangeFront(void* begin, void* end,size_t n)
 	{
 		NextObj(end) = _freeList;
 		_freeList = begin;
@@ -60,12 +62,25 @@ public:
 	}
 	void* PopFront()
 	{
-		void* pop_obj = _freeList;
+		void* obj = _freeList;
 		_freeList = NextObj(_freeList);
 		_size--;
-		return pop_obj;
+		return obj;
 	}
-
+	void PopRangeFront(void*& begin,void*& end,size_t n)
+	{
+		assert(n <= _size);
+		begin = _freeList;
+		void* cur = _freeList;
+		for (size_t i = 1; i < n; i++)
+		{
+			cur = NextObj(cur);
+		}
+		end = cur;
+		NextObj(end) = nullptr;
+		_freeList = NextObj(cur);
+		_size -= n;
+	}
 	bool Empty()
 	{
 		return _size == 0;
@@ -73,6 +88,10 @@ public:
 	size_t& MaxSize()
 	{
 		return _maxSize;
+	}
+	size_t Size()
+	{
+		return _size;
 	}
 private:
 	void* _freeList = nullptr;
@@ -82,30 +101,30 @@ private:
 
 class SizeClass {
 public:
-	static size_t _RoundUp(size_t sizeByte,size_t align)
+	static size_t _RoundUp(size_t size,size_t align)
 	{
-		return  (sizeByte + align - 1) & ~(align - 1);
+		return  (size + align - 1) & ~(align - 1);
 	}
-	static size_t RoundUp(size_t sizeByte)
+	static size_t RoundUp(size_t size)
 	{
-		if (sizeByte <= 128) return _RoundUp(sizeByte, 8);
-		else if(sizeByte <= 1024) return _RoundUp(sizeByte, 16);
-		else if (sizeByte <= 8*1024) return _RoundUp(sizeByte, 128);
-		else if (sizeByte <= 64*1024) return _RoundUp(sizeByte, 1024);
-		else if (sizeByte <= MAX_BYTES) return _RoundUp(sizeByte, 8*1024);
+		if (size <= 128) return _RoundUp(size, 8);
+		else if(size <= 1024) return _RoundUp(size, 16);
+		else if (size <= 8*1024) return _RoundUp(size, 128);
+		else if (size <= 64*1024) return _RoundUp(size, 1024);
+		else if (size <= MAX_BYTES) return _RoundUp(size, 8*1024);
 		else {
 			//这里是超过MAX_BYTES的情况
 			return -1;
 		}
 	}
 
-	static size_t _Index(size_t sizeByte,size_t align_shift)
+	static size_t _Index(size_t size,size_t align_shift)
 	{
-		return ((sizeByte + (1 << align_shift) - 1) >> align_shift) - 1;
+		return ((size + (1 << align_shift) - 1) >> align_shift) - 1;
 	}
-	static size_t Index(size_t sizeByte)
+	static size_t Index(size_t size)
 	{
-		assert(sizeByte <= MAX_BYTES);
+		assert(size <= MAX_BYTES);
 		/*
 		* threadCache中每个桶所含的内存块大小不一
 		* [1,128] 中有16个桶，相邻桶之间内存大小相差8B
@@ -115,40 +134,40 @@ public:
 		* [64*1024+1,256*1024] 有24个桶，相邻桶之间内存大小相差8*1024B
 		*/
 		static const int group_array[] = { 16,56,56,56,24 };
-		if (sizeByte <= 128) return _Index(sizeByte, 3);
-		else if (sizeByte <= 1024) {
-			return _Index(sizeByte - 128, 4) + group_array[0];
+		if (size <= 128) return _Index(size, 3);
+		else if (size <= 1024) {
+			return _Index(size - 128, 4) + group_array[0];
 		}
-		else if (sizeByte <= 8 * 1024) {
-			return _Index(sizeByte - 1024, 7) + group_array[1] + group_array[0];
+		else if (size <= 8 * 1024) {
+			return _Index(size - 1024, 7) + group_array[1] + group_array[0];
 		}
-		else if (sizeByte <= 64 * 1024) {
-			return _Index(sizeByte - 8 * 1024, 10) + group_array[2] + group_array[1] + group_array[0];
+		else if (size <= 64 * 1024) {
+			return _Index(size - 8 * 1024, 10) + group_array[2] + group_array[1] + group_array[0];
 		}
-		else if (sizeByte <= 256 * 1024) {
-			return _Index(sizeByte - 64 * 1024, 13) + group_array[3] + group_array[2] + group_array[1] + group_array[0];
+		else if (size <= 256 * 1024) {
+			return _Index(size - 64 * 1024, 13) + group_array[3] + group_array[2] + group_array[1] + group_array[0];
 		}
 		else assert(false);
 		return -1;
 	}
 
 	//threadcache一次向centralcache要的obj数量的上限
-	static size_t NumMoveSize(size_t sizeByte)
+	static size_t NumMoveSize(size_t size)
 	{
-		assert(sizeByte > 0);
+		assert(size > 0);
 		//慢启动策略
 		//小对象一次批量申请的上限高
 		//大对象一次批量申请的上限低
-		size_t num = MAX_BYTES / sizeByte;
+		size_t num = MAX_BYTES / size;
 		if (num < 2) num = 2;
 		else if (num > 512) num = 512;
 		return num;
 	}
 
-	static size_t NumMovePage(size_t sizeByte)
+	static size_t NumMovePage(size_t size)
 	{
-		size_t num = NumMoveSize(sizeByte);
-		size_t pages = num * sizeByte;
+		size_t num = NumMoveSize(size);
+		size_t pages = num * size;
 		pages >>= PAGE_SHIFT;
 		if (pages < 1) pages = 1;
 		return pages;
