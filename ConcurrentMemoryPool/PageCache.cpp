@@ -86,8 +86,7 @@ void PageCache::ReleaseSpan(Span* span)
 		Span* prevSpan = ret->second;
 		//如果前一个span还在被使用，则退出
 		//此处不能使用useCount,因为当span刚被申请出来，此时为0，但是不能将其合并
-		------------------------------------------------
-		if (prevSpan-> != 0) break;
+		if (prevSpan->_isUse) break;
 
 		//如果与前一个span合并后超过了PageCache能挂的最大Span,则退出
 		if (prevSpan->_n + span->_n > KPAGE - 1) break;
@@ -108,8 +107,7 @@ void PageCache::ReleaseSpan(Span* span)
 		Span* nextSpan = ret->second;
 		//如果前一个span还在被使用，则退出
 		//此处不能使用useCount,因为当span刚被申请出来，此时为0，但是不能将其合并
-		------------------------------------------------
-		if (nextSpan->_useCount != 0) break;
+		if (nextSpan->_useCount) break;
 
 		//如果与前一个span合并后超过了PageCache能挂的最大Span,则退出
 		if (nextSpan->_n + span->_n > KPAGE - 1) break;
@@ -119,4 +117,8 @@ void PageCache::ReleaseSpan(Span* span)
 	}
 
 	//合并后
+	span->_isUse = false;
+	span->_freeList = nullptr;
+	_pageLists[span->_n].PushFront(span);
+
 }

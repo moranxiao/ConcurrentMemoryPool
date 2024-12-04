@@ -184,6 +184,7 @@ struct Span {
 	void* _freeList = nullptr;
 	size_t _useCount = 0;
 
+	bool _isUse = false;
 };
 
 class SpanList {
