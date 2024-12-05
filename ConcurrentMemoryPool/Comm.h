@@ -32,7 +32,7 @@ static void*& NextObj(void* obj)
 	return *(void**)obj;
 }
 
-static void* SystemAlloc(size_t kpages)
+inline static void* SystemAlloc(size_t kpages)
 {
 	assert(kpages > 0);
 #ifdef _WIN32
@@ -45,6 +45,15 @@ static void* SystemAlloc(size_t kpages)
 	return ptr;
 }
 
+inline static void SystemFree(void* ptr)
+{
+#ifdef _WIN32
+	VirtualFree(ptr, 0, MEM_RELEASE);
+#else
+//linux下 sbrk等
+#endif
+
+}
 
 class FreeList {
 public:
@@ -114,7 +123,8 @@ public:
 		else if (size <= MAX_BYTES) return _RoundUp(size, 8*1024);
 		else {
 			//这里是超过MAX_BYTES的情况
-			return -1;
+			//超过MAX_BYTES则直接按页对齐
+			return _RoundUp(size, 1 << PAGE_SHIFT);
 		}
 	}
 
@@ -181,8 +191,10 @@ struct Span {
 	Span* _next = nullptr;
 	Span* _prev = nullptr;
 
-	void* _freeList = nullptr;
+	size_t _objSize = 0;
 	size_t _useCount = 0;
+
+	void* _freeList = nullptr;
 
 	bool _isUse = false;
 };

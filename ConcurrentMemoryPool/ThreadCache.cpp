@@ -11,7 +11,6 @@ void* ThreadCache::Allocate(size_t size)
 	if (!_freeLists[index].Empty())
 	{
 		return _freeLists[index].PopFront();
-			
 	}
 	//链表中没有空闲内存需要向CentralCache申请
 	else
@@ -33,11 +32,19 @@ void* ThreadCache::FetchFromCentralCache(size_t index, size_t size)
 	void* start = nullptr;
 	void* end = nullptr;
 	size_t actual_batch = CentralCache::GetInstance()->FetchRangeObj(start,end, batch,size);
-	//如果actual_num为0，则start应该为nullptr，表示获取内存块失败，直接返回start
-	if(actual_batch > 1)
-		_freeLists[index].PushRangeFront(NextObj(start), end,actual_batch -1);
-	
-	NextObj(start) = nullptr;
+	//如果actual_num为0，则表示内存获取失败，
+	// 1.要么申请内存没申请到，会抛异常的
+	// 2.要么程序逻辑错误，应该断言检查
+	assert(actual_batch > 0);
+
+	if (actual_batch > 1)
+	{
+		_freeLists[index].PushRangeFront(NextObj(start), end, actual_batch - 1);
+	}
+	else
+	{
+		assert(start == end);
+	}
 	return start;
 }
 
@@ -52,9 +59,14 @@ void ThreadCache::FreeObj(void* ptr, size_t size)
 	//此实现细节只考虑了自由链表过长的情况，还可以加上自由链表所含闲置内存达到一个阈值时触发
 	if (_freeLists[index].MaxSize() <= _freeLists[index].Size())
 	{
-		void* begin;
-		void* end;
-		_freeLists[index].PopRangeFront(begin, end, _freeLists[index].MaxSize());
-		CentralCache::GetInstance()->ReleaseListToSpans(begin,size);
+		ListTooLong(_freeLists[index], size);
 	}
+}
+
+void ThreadCache::ListTooLong(FreeList& list, size_t size)
+{
+	void* begin;
+	void* end;
+	list.PopRangeFront(begin, end, list.MaxSize());
+	CentralCache::GetInstance()->ReleaseListToSpans(begin, size);
 }

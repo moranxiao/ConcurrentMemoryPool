@@ -10,7 +10,7 @@ public:
 	}
 	Span* NewSpan(size_t kpages);
 
-	Span* ObjAddressToSpan(void* obj);
+	Span* MapObjToSpan(void* obj);
 
 	void ReleaseSpan(Span* span);
 

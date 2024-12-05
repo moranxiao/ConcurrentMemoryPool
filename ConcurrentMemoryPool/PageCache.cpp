@@ -5,10 +5,27 @@ PageCache PageCache::_sInst;
 
 Span* PageCache::NewSpan(size_t kpages)
 {
-	assert(kpages >= 1 && kpages <= 128);
+	assert(kpages >= 1);
+
+	if (kpages >= KPAGE)
+	{
+		Span* newSpan = new Span;
+		void* ptr = SystemAlloc(kpages);
+		newSpan->_pageId = (PAGE_ID)ptr >> PAGE_SHIFT;
+		newSpan->_n = kpages;
+		_idSpanMap[newSpan->_pageId] = newSpan;
+		return newSpan;
+	}
+
 	//检查第一个桶有没有Span
 	if (!_pageLists[kpages].Empty())
 	{
+		Span* span = _pageLists[kpages].PopFront();
+		//将分出给CentralCache的span每个页与其指针映射起来
+		for (size_t i = 0; i < span->_n; i++)
+		{
+			_idSpanMap[span->_pageId + i] = span;
+		}
 		return _pageLists[kpages].PopFront();
 	}
 	
@@ -56,9 +73,10 @@ Span* PageCache::NewSpan(size_t kpages)
 }
 
 //将对象地址转换为页号，寻找对应的span
-Span* PageCache::ObjAddressToSpan(void* obj)
+Span* PageCache::MapObjToSpan(void* obj)
 {
 	PAGE_ID id = (PAGE_ID)obj >> PAGE_SHIFT;
+	std::unique_lock<std::mutex> uniqueMtx(*PageCache::GetInstance()->Mutex());
 	auto ret = _idSpanMap.find(id);
 	if (ret != _idSpanMap.end())
 	{
@@ -75,6 +93,18 @@ Span* PageCache::ObjAddressToSpan(void* obj)
 //将CentralCache传来的空闲span与页号相邻的span合并
 void PageCache::ReleaseSpan(Span* span)
 {
+	//如果是比pagecache能存储的最大span还要大的span
+	//则其是直接分配通过系统分配内存的
+	if (span->_n >= KPAGE)
+	{
+		void* ptr = (void*)(span->_pageId << PAGE_SHIFT);
+		SystemFree(ptr);
+		_idSpanMap.erase(span->_pageId);
+		delete span;
+		return;
+	}
+	
+
 	//先将小于此span第一页的相邻页号合并
 	while (1)
 	{
@@ -91,6 +121,7 @@ void PageCache::ReleaseSpan(Span* span)
 		//如果与前一个span合并后超过了PageCache能挂的最大Span,则退出
 		if (prevSpan->_n + span->_n > KPAGE - 1) break;
 
+		_pageLists[prevSpan->_n].Erase(prevSpan);
 		span->_pageId = prevSpan->_pageId;
 		span->_n += prevSpan->_n;
 		delete prevSpan;
@@ -112,6 +143,7 @@ void PageCache::ReleaseSpan(Span* span)
 		//如果与前一个span合并后超过了PageCache能挂的最大Span,则退出
 		if (nextSpan->_n + span->_n > KPAGE - 1) break;
 
+		_pageLists[nextSpan->_n].Erase(nextSpan);
 		span->_n += nextSpan->_n;
 		delete nextSpan;
 	}
@@ -120,5 +152,4 @@ void PageCache::ReleaseSpan(Span* span)
 	span->_isUse = false;
 	span->_freeList = nullptr;
 	_pageLists[span->_n].PushFront(span);
-
 }

@@ -53,7 +53,7 @@ Span* CentralCache::GetOneSpan(size_t index,size_t size)
 	Span* span = PageCache::GetInstance()->NewSpan(SizeClass::NumMovePage(size));
 	span->_isUse = true;
 	PageCache::GetInstance()->Mutex()->unlock();
-	
+
 	//获取从PageCache得到的大块内存的首尾地址
 	char* start = (char*)(span->_pageId << PAGE_SHIFT);
 	size_t bytes = span->_n << PAGE_SHIFT;
@@ -71,6 +71,7 @@ Span* CentralCache::GetOneSpan(size_t index,size_t size)
 		start += size;
 	}
 	NextObj(tail) = nullptr;
+	span->_objSize = size;
 	_spanLists[index].Mutex()->lock();
 	_spanLists[index].PushFront(span);
 	return span;
@@ -82,17 +83,15 @@ void CentralCache::ReleaseListToSpans(void* begin,size_t size)
 	size_t index = SizeClass::Index(size);
 	_spanLists[index].Mutex()->lock();
 	//将每块小内存通过映射找到其对应的span，并挂上去
-	void* next = NextObj(begin);
 	while (begin != nullptr)
 	{
-		Span* span = PageCache::GetInstance()->ObjAddressToSpan(begin);
+		void* next = NextObj(begin);
+		Span* span = PageCache::GetInstance()->MapObjToSpan(begin);
 		//头插入span的freeList上
 		NextObj(begin) = span->_freeList;
 		span->_freeList = begin;
 		span->_useCount--;
 		begin = next;
-		next = NextObj(begin);
-		
 		//如果span的所有小块内存均为被使用则将其回收到PageCache中
 		if (span->_useCount == 0)
 		{
@@ -105,6 +104,5 @@ void CentralCache::ReleaseListToSpans(void* begin,size_t size)
 
 		}
 	}
-
 	_spanLists[index].Mutex()->unlock();
 }

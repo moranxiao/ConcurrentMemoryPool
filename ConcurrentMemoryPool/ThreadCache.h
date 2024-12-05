@@ -11,6 +11,9 @@ public:
 	void* FetchFromCentralCache(size_t index, size_t size);
 
 	void FreeObj(void* ptr,size_t size);
+
+	void ListTooLong(FreeList& list, size_t size);
+
 private:
 	FreeList _freeLists[FREELISTS_NUM];
 		
