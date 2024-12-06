@@ -96,12 +96,16 @@ void TestBigAlloc()
 	ConcurrentFree(p2);
 }
 
-int main()
-{
-	//TLSTest();
-	//TestConcurrentAlloc1();
-	//TestConcurrentAlloc2();
-	//TestConcurrentFree2();
-	TestBigAlloc();
-	return 0;
-}
+
+
+//int main()
+//{
+//	//TLSTest();
+//	//TestConcurrentAlloc1();
+//	//TestConcurrentAlloc2();
+//	//TestConcurrentFree2();
+//	//TestBigAlloc();
+//	//TestObjPool();
+//
+//	return 0;
+//}

@@ -21,6 +21,7 @@ public:
 private:
 	SpanList _pageLists[KPAGE];
 	std::unordered_map<PAGE_ID, Span*> _idSpanMap;
+	ObjectPool<Span> _spanPool;
 	std::mutex _mtx;
 private:
 	PageCache()

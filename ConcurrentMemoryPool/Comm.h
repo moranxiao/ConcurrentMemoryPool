@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <unordered_map>
 
+#include "ObjectPool.h"
 #ifdef _WIN32
 #include <Windows.h>
 #else
@@ -24,7 +25,7 @@ static const size_t MAX_BYTES = 256 * 1024;
 static const size_t FREELISTS_NUM = 208;
 //PageCache的桶数
 static const size_t KPAGE = 129;
-//一个Page的大小:2^13
+//一个Page的大小:2^13 -- 可以改进一下，先获取系统一页的大小，然后再确定
 static const size_t PAGE_SHIFT = 13;
 
 static void*& NextObj(void* obj)
@@ -196,7 +197,7 @@ struct Span {
 
 	void* _freeList = nullptr;
 
-	bool _isUse = false;
+	bool _isUse = true;
 };
 
 class SpanList {

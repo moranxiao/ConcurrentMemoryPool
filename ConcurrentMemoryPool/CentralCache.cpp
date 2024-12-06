@@ -51,10 +51,9 @@ Span* CentralCache::GetOneSpan(size_t index,size_t size)
 	
 	PageCache::GetInstance()->Mutex()->lock();
 	Span* span = PageCache::GetInstance()->NewSpan(SizeClass::NumMovePage(size));
-	span->_isUse = true;
 	PageCache::GetInstance()->Mutex()->unlock();
-
 	//获取从PageCache得到的大块内存的首尾地址
+
 	char* start = (char*)(span->_pageId << PAGE_SHIFT);
 	size_t bytes = span->_n << PAGE_SHIFT;
 	char* end = start + bytes;

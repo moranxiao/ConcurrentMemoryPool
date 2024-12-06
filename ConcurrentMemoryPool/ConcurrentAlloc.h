@@ -6,7 +6,8 @@ static void* ConcurrentAllocate(size_t size)
 {
 	if (pTLSThreadCache == nullptr)
 	{
-		pTLSThreadCache = new ThreadCache;
+		static ObjectPool<ThreadCache> threadPool;
+		pTLSThreadCache = threadPool.New();
 	}
 	assert(pTLSThreadCache);
 	if (size > MAX_BYTES)

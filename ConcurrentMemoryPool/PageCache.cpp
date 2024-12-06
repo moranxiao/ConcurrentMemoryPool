@@ -9,7 +9,7 @@ Span* PageCache::NewSpan(size_t kpages)
 
 	if (kpages >= KPAGE)
 	{
-		Span* newSpan = new Span;
+		Span* newSpan =  _spanPool.New();
 		void* ptr = SystemAlloc(kpages);
 		newSpan->_pageId = (PAGE_ID)ptr >> PAGE_SHIFT;
 		newSpan->_n = kpages;
@@ -26,7 +26,7 @@ Span* PageCache::NewSpan(size_t kpages)
 		{
 			_idSpanMap[span->_pageId + i] = span;
 		}
-		return _pageLists[kpages].PopFront();
+		return span;
 	}
 	
 	for (size_t i = kpages + 1; i < KPAGE; i++)
@@ -36,8 +36,7 @@ Span* PageCache::NewSpan(size_t kpages)
 		{
 			Span* span = _pageLists[i].PopFront();
 			_idSpanMap.erase(span->_pageId);
-			Span* newSpan = new Span;   
-
+			Span* newSpan = _spanPool.New();
 			newSpan->_pageId = span->_pageId;
 			newSpan->_n = kpages;
 
@@ -65,7 +64,7 @@ Span* PageCache::NewSpan(size_t kpages)
 	//只要保证PAGE和系统页面是一样大小就行
 
 	void* ptr = SystemAlloc(KPAGE-1);
-	Span* span = new Span;
+	Span* span = _spanPool.New();
 	span->_pageId = (PAGE_ID)ptr >> PAGE_SHIFT;
 	span->_n = KPAGE-1;
 	_pageLists[span->_n].PushFront(span);
@@ -100,12 +99,12 @@ void PageCache::ReleaseSpan(Span* span)
 		void* ptr = (void*)(span->_pageId << PAGE_SHIFT);
 		SystemFree(ptr);
 		_idSpanMap.erase(span->_pageId);
-		delete span;
+		_spanPool.Delete(span);
 		return;
 	}
 	
 
-	//先将小于此span第一页的相邻页号合并
+	//先将小于此span第一页的相邻页合并
 	while (1)
 	{
 		PAGE_ID id = span->_pageId;
@@ -124,7 +123,8 @@ void PageCache::ReleaseSpan(Span* span)
 		_pageLists[prevSpan->_n].Erase(prevSpan);
 		span->_pageId = prevSpan->_pageId;
 		span->_n += prevSpan->_n;
-		delete prevSpan;
+		_spanPool.Delete(prevSpan);
+
 	}
 	//将在此span页之后的相邻span合并
 	while (1)
@@ -138,14 +138,14 @@ void PageCache::ReleaseSpan(Span* span)
 		Span* nextSpan = ret->second;
 		//如果前一个span还在被使用，则退出
 		//此处不能使用useCount,因为当span刚被申请出来，此时为0，但是不能将其合并
-		if (nextSpan->_useCount) break;
+		if (nextSpan->_isUse) break;
 
 		//如果与前一个span合并后超过了PageCache能挂的最大Span,则退出
 		if (nextSpan->_n + span->_n > KPAGE - 1) break;
 
 		_pageLists[nextSpan->_n].Erase(nextSpan);
 		span->_n += nextSpan->_n;
-		delete nextSpan;
+		_spanPool.Delete(nextSpan);
 	}
 
 	//合并后
