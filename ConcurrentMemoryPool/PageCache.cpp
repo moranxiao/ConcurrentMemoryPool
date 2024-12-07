@@ -16,7 +16,6 @@ Span* PageCache::NewSpan(size_t kpages)
 		_idSpanMap[newSpan->_pageId] = newSpan;
 		return newSpan;
 	}
-
 	//检查第一个桶有没有Span
 	if (!_pageLists[kpages].Empty())
 	{
@@ -26,6 +25,7 @@ Span* PageCache::NewSpan(size_t kpages)
 		{
 			_idSpanMap[span->_pageId + i] = span;
 		}
+		span->_isUse = true;
 		return span;
 	}
 	
@@ -35,7 +35,6 @@ Span* PageCache::NewSpan(size_t kpages)
 		if (!_pageLists[i].Empty())
 		{
 			Span* span = _pageLists[i].PopFront();
-			_idSpanMap.erase(span->_pageId);
 			Span* newSpan = _spanPool.New();
 			newSpan->_pageId = span->_pageId;
 			newSpan->_n = kpages;
@@ -70,6 +69,9 @@ Span* PageCache::NewSpan(size_t kpages)
 	_pageLists[span->_n].PushFront(span);
 	return NewSpan(kpages);
 }
+
+
+
 
 //将对象地址转换为页号，寻找对应的span
 Span* PageCache::MapObjToSpan(void* obj)
@@ -132,7 +134,7 @@ void PageCache::ReleaseSpan(Span* span)
 		PAGE_ID id = span->_pageId;
 		auto ret = _idSpanMap.find(id + span->_n);
 
-		//如果前一个span不存在，则退出
+		//如果后一个span不存在，则退出
 		if (ret == _idSpanMap.end()) break;
 
 		Span* nextSpan = ret->second;
@@ -140,7 +142,7 @@ void PageCache::ReleaseSpan(Span* span)
 		//此处不能使用useCount,因为当span刚被申请出来，此时为0，但是不能将其合并
 		if (nextSpan->_isUse) break;
 
-		//如果与前一个span合并后超过了PageCache能挂的最大Span,则退出
+		//如果与后一个span合并后超过了PageCache能挂的最大Span,则退出
 		if (nextSpan->_n + span->_n > KPAGE - 1) break;
 
 		_pageLists[nextSpan->_n].Erase(nextSpan);
@@ -150,6 +152,5 @@ void PageCache::ReleaseSpan(Span* span)
 
 	//合并后
 	span->_isUse = false;
-	span->_freeList = nullptr;
 	_pageLists[span->_n].PushFront(span);
 }

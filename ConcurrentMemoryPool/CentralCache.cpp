@@ -62,7 +62,6 @@ Span* CentralCache::GetOneSpan(size_t index,size_t size)
 	span->_freeList = start;
 	start += size;
 	void* tail = span->_freeList;
-	
 	while (start < end)
 	{
 		NextObj(tail) = start;
@@ -75,6 +74,8 @@ Span* CentralCache::GetOneSpan(size_t index,size_t size)
 	_spanLists[index].PushFront(span);
 	return span;
 }
+
+
 
 //将ThreadCache释放的小块内存重新挂到Span上，当此span小块内存都被归还时，再释放到PageCache中
 void CentralCache::ReleaseListToSpans(void* begin,size_t size)

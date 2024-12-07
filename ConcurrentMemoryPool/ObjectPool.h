@@ -49,7 +49,6 @@ public:
 			_remainSize -= size;
 			obj = (T*)_mem;
 			_mem += size;
-			
 		}
 		_mtx.unlock();
 		new(obj)T;
