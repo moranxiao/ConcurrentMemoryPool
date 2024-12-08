@@ -1,6 +1,7 @@
 #pragma once
 #include "ThreadCache.h"
 #include "PageCache.h"
+#include "ObjectPool.h"
 
 static void* ConcurrentAllocate(size_t size)
 {
@@ -38,5 +39,5 @@ static void ConcurrentFree(void* ptr)
 		PageCache::GetInstance()->ReleaseSpan(span);
 		PageCache::GetInstance()->Mutex()->unlock();
 	}
-	else  pTLSThreadCache->FreeObj(ptr,size);
+	else  pTLSThreadCache->Deallocate(ptr,size);
 }

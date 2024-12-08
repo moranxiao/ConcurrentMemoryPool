@@ -49,7 +49,7 @@ void* ThreadCache::FetchFromCentralCache(size_t index, size_t size)
 }
 
 //释放对象内存给ThreadCache
-void ThreadCache::FreeObj(void* ptr, size_t size)
+void ThreadCache::Deallocate(void* ptr, size_t size)
 {
 	assert(size > 0 && size <= MAX_BYTES);
 	size_t index = SizeClass::Index(size);
